@@ -1,6 +1,7 @@
-from flask import Flask, render_template
+from flask import Flask, render_template, request
 import requests
 from post import Post
+from auth import APIKEY_ALPHAVANTAGE, APIKEY_NEWSAPI, bot_chatID,  bot_token
 
 app = Flask(__name__)
 
@@ -19,15 +20,23 @@ post_objects = [Post(post["id"],
 @app.route('/')
 def home():
     return render_template("index.html", posts=post_objects)
-    #return render_template("index.html")
 
 @app.route('/about')
 def about():
     return render_template("about.html")
 
-@app.route('/contact')
+@app.route('/contact', methods=["GET", "POST"])
 def contact():
-    return render_template("contact.html")
+    if request.method == 'POST':
+        data = request.form
+        if send_telegram_message(data["name"], data["email"], data["phone"],
+                                 data["message"]):
+            text = "Sucessfully sent message"
+        else:
+            text = "Error when sending the message, please try again!"
+    elif request.method == 'GET':
+        text = "Contact me"
+    return render_template("contact.html", text=text)
 
 @app.route('/post/<int:index>')
 def show_post(index):
@@ -36,6 +45,21 @@ def show_post(index):
         if post.id == index:
             requested_post = post
     return render_template("post.html", post=requested_post)
+
+def send_telegram_message(name, email, phone, message):
+    msg = f"Subject: Contact form from {name}\n"
+    msg += f"Email: {email}\n"
+    msg += f"Phone: {phone}\n"
+    msg += f"Message: {message}\n\n"
+    params = {
+            "chat_id": bot_chatID,
+            "text": msg,
+            "parse_mode": "MARKDOWN",
+            }
+    url = "https://api.telegram.org/bot" + bot_token + "/sendMessage"
+    response = requests.get(url, params=params)
+    response.raise_for_status()
+    return response.json()
 
 if __name__ == "__main__":
     app.run(debug=True)
